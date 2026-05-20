@@ -47,7 +47,7 @@ def fast_hadamard_transform(x: np.ndarray) -> np.ndarray:
 def hadamard_decode_block(soft8: np.ndarray) -> np.ndarray:
     transformed = fast_hadamard_transform(soft8)
     idx = int(np.argmax(np.abs(transformed)))  # most likely row index
-    b3 = 1 if transformed[idx] > 0 else 0     # sign gives b3
+    b3 = 1 if transformed[idx] < 0 else 0     # sign gives b3 (b3=1 → codeword was negated)
     b2 = (idx >> 2) & 1
     b1 = (idx >> 1) & 1
     b0 = idx & 1
