@@ -1,0 +1,10 @@
+# Constants
+
+"""
+
+QPSK_AMPLITUDE
+PREAMBLE_LENGTH
+ENERGY_MAX
+...
+
+"""
