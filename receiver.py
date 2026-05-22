@@ -1,78 +1,117 @@
 import numpy as np
-from config import PREAMBLE_AMPLITUDE, PREAMBLE_LENGTH
-from utils import apply_T_inverse, bits_to_text
+
+from config import PREAMBLE_AMPLITUDE, PREAMBLE_LENGTH, N_INFO_BITS, CONV_TAIL_BITS
+from utils import apply_T, apply_T_inverse, bits_to_text
+
+# ── Viterbi precomputed tables ────────────────────────────────────────────────
+# NASA K=7 rate-1/2 code  (same polynomials as transmitter)
+_K        = 7
+_N_STATES = 1 << (_K - 1)   # 64
+_G1 = [1, 0, 1, 1, 0, 1, 1]
+_G2 = [1, 1, 1, 1, 0, 0, 1]
+
+# _OUTPUT[s, u] = (c1, c2)  output bits for state s and input u
+# _NEXT[s, u]   = next state
+_OUTPUT = np.zeros((_N_STATES, 2, 2), dtype=np.int8)
+_NEXT   = np.zeros((_N_STATES, 2),    dtype=np.int32)
+
+for _s in range(_N_STATES):
+    for _u in range(2):
+        _full = [_u] + [(_s >> (_K - 2 - _j)) & 1 for _j in range(_K - 1)]
+        _OUTPUT[_s, _u, 0] = sum(_full[_i] * _G1[_i] for _i in range(_K)) % 2
+        _OUTPUT[_s, _u, 1] = sum(_full[_i] * _G2[_i] for _i in range(_K)) % 2
+        _NEXT[_s, _u]      = ((_s >> 1) | (_u << (_K - 2))) & (_N_STATES - 1)
+
+# Reverse table: for each next_state, the two (prev_state, input) pairs
+# that lead to it — used for vectorised ACS.
+_REV     = np.zeros((_N_STATES, 2, 2), dtype=np.int32)
+_rev_cnt = np.zeros(_N_STATES, dtype=int)
+for _s in range(_N_STATES):
+    for _u in range(2):
+        _ns             = int(_NEXT[_s, _u])
+        _REV[_ns, _rev_cnt[_ns]] = [_s, _u]
+        _rev_cnt[_ns]  += 1
+
+# Precomputed ±1 chip values and incoming-path indices for the ACS loop
+_X1  = 1.0 - 2.0 * _OUTPUT[:, :, 0].astype(float)  # (64, 2)
+_X2  = 1.0 - 2.0 * _OUTPUT[:, :, 1].astype(float)  # (64, 2)
+_PS0 = _REV[:, 0, 0]   # (64,) first  incoming prev-state
+_U0  = _REV[:, 0, 1]   # (64,) first  incoming input
+_PS1 = _REV[:, 1, 0]   # (64,) second incoming prev-state
+_U1  = _REV[:, 1, 1]   # (64,) second incoming input
 
 
-# Identifies which rotation T1/T2/T3/T4 the channel applied, using the received preamble.
-# Parameters: y_preamble (4 received values), A (preamble amplitude from config)
-# Returns: k ∈ {1, 2, 3, 4}, the estimated rotation index
+# ── Functions ─────────────────────────────────────────────────────────────────
+
 def estimate_T(y_preamble: np.ndarray, A: float) -> int:
-    candidates = np.array([
-        [ A,  A,  A,  A],   # T1
-        [-A,  A, -A,  A],   # T2
-        [-A, -A, -A, -A],   # T3
-        [ A, -A,  A, -A],   # T4
-    ])
-    scores = candidates @ y_preamble   # dot product with all candidates at once
-    return int(np.argmax(scores)) + 1  # +1 because T is indexed 1..4
+    """
+    ML estimation of the rotation index k ∈ {1,2,3,4} from the received preamble.
+    Candidates are built dynamically from PREAMBLE_LENGTH.
+    """
+    base       = np.full(PREAMBLE_LENGTH, A, dtype=float)
+    candidates = np.array([apply_T(base, k) for k in range(1, 5)])
+    return int(np.argmax(candidates @ y_preamble)) + 1
 
 
-# Pass-through soft demodulation: each component is already a soft bit after de-rotation.
-# Parameters: y_data - 1D array of 480 floats
-# Returns: same array unchanged (Hadamard decoder handles the final decision)
-def demap_qpsk(y_data: np.ndarray) -> np.ndarray:
-    return y_data
+def viterbi_decode(soft: np.ndarray) -> np.ndarray:
+    """
+    Soft-decision Viterbi decoder for the NASA K=7 rate-1/2 convolutional code.
+
+    The forward pass is fully vectorised with numpy (no Python inner loops).
+    Traceback starts from state 0 because the encoder terminates the register
+    with 6 tail bits.
+
+    Parameters:
+        soft - 1D array of N_CODED_BITS=492 de-rotated BPSK soft values (≈ ±Aq + noise)
+    Returns:
+        1D array of N_INFO_BITS=240 decoded info bits in {0, 1}
+    """
+    n_steps = len(soft) // 2   # 246 (240 info + 6 tail)
+
+    path_metric = np.full(_N_STATES, -np.inf)
+    path_metric[0] = 0.0
+
+    survivors = np.zeros((n_steps, _N_STATES), dtype=np.int8)
+    prev_st   = np.zeros((n_steps, _N_STATES), dtype=np.int8)
+
+    for t in range(n_steps):
+        r1, r2 = soft[2 * t], soft[2 * t + 1]
+
+        # Branch metrics for all (state, input) pairs — shape (64, 2)
+        branch = r1 * _X1 + r2 * _X2
+
+        # Accumulated metrics — shape (64, 2)
+        total = path_metric[:, None] + branch
+
+        # Vectorised ACS: compare the 2 paths arriving at each next state
+        m0       = total[_PS0, _U0]          # (64,) metric via 1st incoming path
+        m1       = total[_PS1, _U1]          # (64,) metric via 2nd incoming path
+        choose_1 = m1 > m0
+
+        path_metric = np.where(choose_1, m1, m0)
+        survivors[t] = np.where(choose_1, _U1,  _U0 ).astype(np.int8)
+        prev_st[t]   = np.where(choose_1, _PS1, _PS0).astype(np.int8)
+
+    # Traceback from state 0 (code is terminated — encoder ends in state 0)
+    decoded = np.zeros(n_steps, dtype=int)
+    state   = 0
+    for t in range(n_steps - 1, -1, -1):
+        decoded[t] = survivors[t, state]
+        state      = int(prev_st[t, state])
+
+    return decoded[:N_INFO_BITS]   # discard the 6 tail bits
 
 
-# Computes the Hadamard transform of a vector using the butterfly algorithm.
-# Parameters: x1D array of floats (length must be a power of 2)
-# Returns: 1D array of floats. Property: FHT(FHT(x)) = n * x
-def fast_hadamard_transform(x: np.ndarray) -> np.ndarray:
-    x = x.copy().astype(float)
-    n = len(x)
-    h = 1
-    while h < n:
-        for i in range(0, n, h * 2):
-            for j in range(i, i + h):
-                a, b = x[j], x[j + h]
-                x[j]     = a + b
-                x[j + h] = a - b
-        h *= 2
-    return x
-
-
-# Decodes a single block of 8 soft bits into 4 info bits.
-# Parameters: soft8 — 1D array of 8 floats
-# Returns: 1D array of 4 ints ∈ {0, 1} ordered as [b3, b2, b1, b0]
-def hadamard_decode_block(soft8: np.ndarray) -> np.ndarray:
-    transformed = fast_hadamard_transform(soft8)
-    idx = int(np.argmax(np.abs(transformed)))  # most likely row index
-    b3 = 1 if transformed[idx] < 0 else 0     # sign gives b3 (b3=1 → codeword was negated)
-    b2 = (idx >> 2) & 1
-    b1 = (idx >> 1) & 1
-    b0 = idx & 1
-    return np.array([b3, b2, b1, b0], dtype=int)
-
-
-# Decodes 480 soft bits into 240 info bits by processing 60 blocks of 8.
-# Parameters: soft_bits — 1D array of 480 floats (de-rotated QPSK values)
-# Returns: 1D array of 240 ints ∈ {0, 1}
-def hadamard_decode_all(soft_bits: np.ndarray) -> np.ndarray:
-    blocks = soft_bits.reshape(60, 8)
-    decoded = np.concatenate([hadamard_decode_block(block) for block in blocks])
-    return decoded.astype(int)
-
-
-# Full decoding pipeline: received signal → text.
-# Parameters: y — 1D array of 484 floats (channel output)
-# Returns: string of 40 characters from ALPHABET
 def decode_message(y: np.ndarray) -> str:
-    y_preamble = y[:PREAMBLE_LENGTH]
-    y_data     = y[PREAMBLE_LENGTH:]
+    """
+    Full receiver pipeline:
+        y → preamble / data split → estimate T → de-rotate → Viterbi → text
+    """
+    y_preamble  = y[:PREAMBLE_LENGTH]
+    y_data      = y[PREAMBLE_LENGTH:]
 
-    k_hat       = estimate_T(y_preamble, PREAMBLE_AMPLITUDE)  # estimate rotation
-    y_derotated = apply_T_inverse(y_data, k_hat)              # undo rotation
-    soft        = demap_qpsk(y_derotated)                     # soft QPSK demodulation
-    bits        = hadamard_decode_all(soft)                   # soft Hadamard decode
+    k_hat       = estimate_T(y_preamble, PREAMBLE_AMPLITUDE)
+    y_derotated = apply_T_inverse(y_data, k_hat)
+    bits        = viterbi_decode(y_derotated)
 
     return bits_to_text(bits)

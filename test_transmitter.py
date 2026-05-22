@@ -1,79 +1,75 @@
 """
-Unit tests for transmitter only
-Run from terminal using: python test_transmitter.py
+Unit tests for the convolutional transmitter.
+Run from terminal: python test_transmitter.py
 """
 
 import numpy as np
+from transmitter import conv_encode, map_bpsk, build_preamble, encode_message
+from config import N_INFO_BITS, N_CODED_BITS, CONV_TAIL_BITS, QPSK_AMPLITUDE
 
-from transmitter import (
-    build_hadamard_matrix,
-    hadamard_encode_block,
-    hadamard_encode_all,
-    map_to_qpsk,
-    build_preamble,
-    encode_message
-)
 
-def test_hadamard_matrix():
+def test_conv_encode_length():
+    bits = np.random.randint(0, 2, N_INFO_BITS)
+    out  = conv_encode(bits)
+    assert len(out) == N_CODED_BITS, f"Expected {N_CODED_BITS}, got {len(out)}"
 
-    H = build_hadamard_matrix(3)
 
-    assert H.shape == (8, 8)
-    assert np.allclose(H @ H.T, 8 * np.eye(8))
+def test_conv_encode_binary():
+    bits = np.random.randint(0, 2, N_INFO_BITS)
+    out  = conv_encode(bits)
+    assert set(np.unique(out)).issubset({0, 1})
 
-def test_hadamard_encode_consistency():
 
-    bits = np.array([1, 0, 1, 1])
-    out = hadamard_encode_block(bits)
+def test_conv_encode_all_zeros():
+    # All-zero input → all-zero output (both generators sum to 0 mod 2)
+    bits = np.zeros(N_INFO_BITS, dtype=int)
+    out  = conv_encode(bits)
+    assert np.all(out == 0), "All-zero input must produce all-zero codeword."
 
-    assert out.shape == (8,)
-    assert set(out).issubset({-1, 1})
 
-def test_hadamard_encode_all():
+def test_conv_tail_terminates():
+    # The last CONV_TAIL_BITS*2 output bits come from the tail zeros.
+    # For an all-zero input the tail output must also be all zero.
+    bits = np.zeros(N_INFO_BITS, dtype=int)
+    out  = conv_encode(bits)
+    tail = out[-(CONV_TAIL_BITS * 2):]
+    assert np.all(tail == 0)
 
-    bits = np.random.randint(0, 2, 240)
-    out = hadamard_encode_all(bits)
 
-    assert out.shape == (480,)
-    assert set(np.unique(out)).issubset({-1, 1})
+def test_bpsk_mapping():
+    coded    = np.array([0, 1, 0, 1])
+    chips    = map_bpsk(coded, Aq=1.0)
+    expected = np.array([1.0, -1.0, 1.0, -1.0])
+    assert np.allclose(chips, expected)
 
-def test_qpsk_mapping():
-
-    coded = np.array([1, -1, -1, 1])
-    Aq = 0.5
-    out = map_to_qpsk(coded, Aq)
-    expected = np.array([0.5, -0.5, -0.5, 0.5])
-
-    assert np.allclose(out, expected)
 
 def test_build_preamble():
-
-    p = build_preamble(3.0, repeat=6)
-
-    assert len(p) == 6
+    p = build_preamble(3.0, repeat=4)
+    assert len(p) == 4
     assert np.allclose(p, 3.0)
 
+
 def test_encode_constraints():
-
-    msg = "Hello World This Is A Test Message 1234"
-    x = encode_message(msg)
-
+    msg = "Hello World This Is A Test Message 1234."   # 40 chars
+    x   = encode_message(msg)
     assert len(x) <= 500
     assert len(x) % 2 == 0
     assert np.sum(x**2) <= 1200
 
+
 if __name__ == "__main__":
-
-    test_hadamard_matrix()
-    print("test matrix");
-    test_hadamard_encode_consistency()
-    print("test hadamar consistency");
-    test_hadamard_encode_all()
-    print("test hadamar encode all");
-    test_qpsk_mapping()
-    print("test qpsk");
+    test_conv_encode_length()
+    print("test conv encode length")
+    test_conv_encode_binary()
+    print("test conv encode binary")
+    test_conv_encode_all_zeros()
+    print("test conv encode all zeros")
+    test_conv_tail_terminates()
+    print("test conv tail terminates")
+    test_bpsk_mapping()
+    print("test bpsk mapping")
     test_build_preamble()
-    print("test build preamble");
+    print("test build preamble")
     test_encode_constraints()
-
+    print("test encode constraints")
     print("All transmitter tests passed.")
