@@ -17,7 +17,8 @@ IDX_TO_CHAR = {i: c for i, c in enumerate(ALPHABET)}
 # Transforms text to bits by mapping each char to its index in ALPHABET 
 # and then to 6 bits (MSB first).
 def text_to_bits(text: str) -> np.ndarray:
-    assert len(text) == N_CHARS # est-ce que ça doit être strictement égal à 40 ????????????????????????????????????????
+    if (len(text) < N_CHARS):
+        text = text.ljust(N_CHARS)
     bits = []
     for c in text:
         idx = CHAR_TO_IDX[c]

@@ -65,10 +65,15 @@ def test_encode_constraints():
 if __name__ == "__main__":
 
     test_hadamard_matrix()
+    print("test matrix");
     test_hadamard_encode_consistency()
+    print("test hadamar consistency");
     test_hadamard_encode_all()
+    print("test hadamar encode all");
     test_qpsk_mapping()
+    print("test qpsk");
     test_build_preamble()
+    print("test build preamble");
     test_encode_constraints()
 
     print("All transmitter tests passed.")
