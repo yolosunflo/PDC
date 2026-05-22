@@ -118,7 +118,7 @@ def map_to_qpsk(coded_pm1: np.ndarray, Aq: float) -> np.ndarray:
 #   repeat - number of repetitions (must be even)
 # Returns:
 #   1D array containing repeated A values
-def build_preamble(A: float, repeat: int = 4) -> np.ndarray:
+def build_preamble(A: float, repeat: int = 4) -> np.ndarray: # répéter 6 fois pour faire 24 valeurs au lieu de 4 ????????????????????????????????????????
     """
     Builds a preamble of the form: (A, A, A, ..., A)
     """
@@ -154,7 +154,7 @@ def encode_message(text: str) -> np.ndarray:
     x = np.concatenate([preamble, symbols])
 
     assert len(x) <= N_MAX
-    assert len(x) % 2 == 0
+    assert len(x) % 2 == 0 # remplacer par assert check_constraints(x) ?????????????????????????????????????????
     assert np.sum(x**2) <= ENERGY_MAX
 
     return x
