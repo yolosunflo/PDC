@@ -41,6 +41,10 @@ def test_full_channel():
         char_errors += errs
         if errs == 0:
             perfect += 1
+        else:
+            print(f"[{i:3d}] sent   : '{msg}'")
+            print(f"       decoded: '{decoded}'")
+            print()
     
     print(f"Taux d'erreur caractère : {char_errors / (N_CHARS*N):.5f}")
     print(f"Transmissions parfaites : {perfect}/{N}")
