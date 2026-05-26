@@ -54,6 +54,7 @@ def viterbi_decode(soft: np.ndarray) -> np.ndarray:
 
     survivors  = np.zeros((n_steps, N_STATES), dtype=np.int8)
     prev_state = np.zeros((n_steps, N_STATES), dtype=np.int8)
+    idx        = np.arange(N_STATES)
 
     for t in range(n_steps):
         r1, r2 = soft[2 * t], soft[2 * t + 1]
@@ -61,17 +62,16 @@ def viterbi_decode(soft: np.ndarray) -> np.ndarray:
         # Branch metrics for all (state, input) pairs — shape (64, 2)
         branch = r1 * CHIPS_1 + r2 * CHIPS_2
 
-        # Accumulated metrics — shape (64, 2)
+        # Accumulated metrics for the 2 paths arriving at each next state — shape (64, 2)
         total = path_metric[:, None] + branch
+        cand  = total[INCOMING_STATE, INCOMING_BIT]   # (64, 2)
 
-        # Vectorised ACS: compare the 2 paths arriving at each next state
-        m0 = total[INCOMING_STATE[:, 0], INCOMING_BIT[:, 0]]   # (64,) metric via 1st incoming path
-        m1 = total[INCOMING_STATE[:, 1], INCOMING_BIT[:, 1]]   # (64,) metric via 2nd incoming path
-        choose_1 = m1 > m0
+        # ACS: pick the best incoming path for each state
+        best = np.argmax(cand, axis=1)                # (64,) — 0 ou 1
 
-        path_metric = np.where(choose_1, m1, m0)
-        survivors[t] = np.where(choose_1, INCOMING_BIT[:, 1],   INCOMING_BIT[:, 0]  ).astype(np.int8)
-        prev_state[t] = np.where(choose_1, INCOMING_STATE[:, 1], INCOMING_STATE[:, 0]).astype(np.int8)
+        path_metric   = cand[idx, best]
+        survivors[t]  = INCOMING_BIT[idx, best]
+        prev_state[t] = INCOMING_STATE[idx, best]
 
     # Traceback from state 0 (code is terminated — encoder ends in state 0)
     decoded = np.zeros(n_steps, dtype=int)
