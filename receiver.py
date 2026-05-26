@@ -17,8 +17,8 @@ NEXT = np.zeros((N_STATES, 2),    dtype=np.int32)
 for s in range(N_STATES):
     for u in range(2):
         full = [u] + [(s >> (K - 2 - j)) & 1 for j in range(K - 1)]
-        OUTPUT[s, u, 0] = sum(full[i] * G1[i] for i in range(K)) % 2
-        OUTPUT[s, u, 1] = sum(full[i] * G2[i] for i in range(K)) % 2
+        OUTPUT[s, u, 0] = np.dot(full, G1) % 2
+        OUTPUT[s, u, 1] = np.dot(full, G2) % 2
         NEXT[s, u] = ((s >> 1) | (u << (K - 2))) & (N_STATES - 1)
 
 # Reverse table: for each next_state, the two (prev_state, input) pairs that lead to it ( used for vectorised ACS)
@@ -62,12 +62,12 @@ def viterbi_decode(soft: np.ndarray) -> np.ndarray:
         # Branch metrics for all (state, input) pairs — shape (64, 2)
         branch = r1 * CHIPS_1 + r2 * CHIPS_2
 
-        # Accumulated metrics for the 2 paths arriving at each next state — shape (64, 2)
+        # Accumulated metrics for the 2 paths arriving at each next state
         total = path_metric[:, None] + branch
         cand  = total[INCOMING_STATE, INCOMING_BIT]   # (64, 2)
 
-        # ACS: pick the best incoming path for each state
-        best = np.argmax(cand, axis=1)                # (64,) — 0 ou 1
+        #Add-Compare-Select pick the best incoming path for each state
+        best = np.argmax(cand, axis=1)                # (64,)/ 0 ou 1
 
         path_metric   = cand[idx, best]
         survivors[t]  = INCOMING_BIT[idx, best]
@@ -82,7 +82,7 @@ def viterbi_decode(soft: np.ndarray) -> np.ndarray:
 
     return decoded[:N_INFO_BITS]   # discard the 6 tail bits
 
-#Full receiver pipeline: y → preamble / data split → estimate T → de-rotate → Viterbi → text
+#Full receiver pipeline: y -> preamble / data split -> estimate T -> de-rotate -> Viterbi -> text
 def decode_message(y: np.ndarray) -> str:
     y_preamble  = y[:PREAMBLE_LENGTH]
     y_data = y[PREAMBLE_LENGTH:]
