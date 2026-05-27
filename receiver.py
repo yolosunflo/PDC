@@ -5,7 +5,7 @@ from utils import apply_T, apply_T_inverse, bits_to_text
 
 
 K = 7
-N_STATES = 1 << (K - 1)   # 64
+N_STATES = 2 ** (K - 1)   # 64
 G1 = [1, 0, 1, 1, 0, 1, 1]
 G2 = [1, 1, 1, 1, 0, 0, 1]
 
@@ -16,19 +16,19 @@ NEXT = np.zeros((N_STATES, 2),    dtype=np.int32)
 
 for s in range(N_STATES):
     for u in range(2):
-        full = [u] + [(s >> (K - 2 - j)) & 1 for j in range(K - 1)]
+        full = [u] + [(s // 2 ** (K - 2 - j)) % 2 for j in range(K - 1)]
         OUTPUT[s, u, 0] = np.dot(full, G1) % 2
         OUTPUT[s, u, 1] = np.dot(full, G2) % 2
-        NEXT[s, u] = ((s >> 1) | (u << (K - 2))) & (N_STATES - 1)
+        NEXT[s, u] = ((s // 2) | (u * 2 ** (K - 2))) & (N_STATES - 1)
 
 # Reverse table: for each next_state, the two (prev_state, input) pairs that lead to it ( used for vectorised ACS)
 REV = np.zeros((N_STATES, 2, 2), dtype=np.int32)
 rev_cnt = np.zeros(N_STATES, dtype=int)
 for s in range(N_STATES):
     for u in range(2):
-        ns = int(NEXT[s, u])
-        REV[ns, rev_cnt[ns]] = [s, u]
-        rev_cnt[ns] += 1
+        next_state = int(NEXT[s, u])
+        REV[next_state, rev_cnt[next_state]] = [s, u]
+        rev_cnt[next_state] += 1
 
 # Precomputed ±1 chip values and incoming-path indices for the ACS loop
 CHIPS_1 = 1.0 - 2.0 * OUTPUT[:, :, 0].astype(float)  # (64, 2) expected BPSK chip on branch 1
@@ -44,11 +44,11 @@ def estimate_T(y_preamble: np.ndarray, A: float) -> int:
     return int(np.argmax(candidates @ y_preamble)) + 1
 
 # Soft-decision Viterbi decoder 
-# Parameters: soft - 1D array of N_CODED_BITS=492 de-rotated BPSK soft values (≈ ±Aq + noise)
+# Parameters: received_symbols - 1D array of N_CODED_BITS=492 de-rotated BPSK received_symbols values (≈ ±Aq + noise)
 # Returns: 1D array of N_INFO_BITS=240 decoded info bits in {0, 1}
-def viterbi_decode(soft: np.ndarray) -> np.ndarray:
+def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
 
-    n_steps = len(soft) // 2   # 246 (240 info + 6 tail)
+    n_steps = len(received_symbols) // 2   # 246 (240 info + 6 tail)
     path_metric = np.full(N_STATES, -np.inf)
     path_metric[0] = 0.0
 
@@ -57,7 +57,7 @@ def viterbi_decode(soft: np.ndarray) -> np.ndarray:
     idx        = np.arange(N_STATES)
 
     for t in range(n_steps):
-        r1, r2 = soft[2 * t], soft[2 * t + 1]
+        r1, r2 = received_symbols[2 * t], received_symbols[2 * t + 1]
 
         # Branch metrics for all (state, input) pairs — shape (64, 2)
         branch = r1 * CHIPS_1 + r2 * CHIPS_2
