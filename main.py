@@ -4,7 +4,7 @@ first minimalist version (just to understand how the project is built)
 Run from terminal : python main.py "Hello World This Is A Test Message 1234"
 """
 
-import subprocess # ?????????????????????????????????? on a le droit?
+import subprocess
 import sys
 import numpy as np
 
@@ -21,7 +21,7 @@ def read_output(filename='output.txt'):
 
 def transmit_via_server():
     subprocess.run([
-        'python3', 'client.py',
+        'python', 'client.py',
         '--input_file', 'input.txt',
         '--output_file', 'output.txt',
         '--srv_hostname=iscsrv72.epfl.ch',
