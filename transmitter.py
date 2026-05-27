@@ -7,41 +7,7 @@ from config import (
     K, G1, G2
 )
 from utils import text_to_bits
-"""
-Convolutional Encoding Principle:
-At each time step, one input bit enters a 6-bit shift register
-(memory = K-1 = 6). The encoder therefore operates on a 7-bit vector:
-    [current_bit, s1, s2, s3, s4, s5, s6]
-where:
-    - current_bit is the new input bit
-    - s1...s6 are the previous 6 input bits stored in memory
 
-For each input bit, the encoder produces two output bits.
-Each output bit is computed as a modulo-2 sum (XOR) of selected
-positions of the 7-bit register.
-
-The selected positions are defined by two generator polynomials:
-    g1 = 133₈ = 1011011₂
-    g2 = 171₈ = 1111001₂
-
-Each '1' in the binary representation indicates that the corresponding
-register bit participates in the modulo-2 sum for that output.
-
-Thus, for every input bit:
-    - The shift register is updated.
-    - Two coded bits are produced.
-
-This yields a rate-1/2 code:
-    1 input bit -> 2 coded bits.
-
-The encoder has free distance d_free = 10,
-which provides strong error-correction capability when decoded
-with the Viterbi algorithm.
-
-Tail bits (6 zeros) are appended to the input sequence to force
-the shift register back to the zero state, allowing exact Viterbi
-traceback at the receiver.
-"""
 
 def conv_encode(bits: np.ndarray) -> np.ndarray:
     """
