@@ -4,6 +4,7 @@ from config import (
     PREAMBLE_AMPLITUDE, PREAMBLE_LENGTH,
     QPSK_AMPLITUDE, N_MAX, ENERGY_MAX,
     N_INFO_BITS, CONV_TAIL_BITS, N_CODED_BITS,
+    K, G1, G2
 )
 from utils import text_to_bits
 """
@@ -41,11 +42,6 @@ Tail bits (6 zeros) are appended to the input sequence to force
 the shift register back to the zero state, allowing exact Viterbi
 traceback at the receiver.
 """
-
-# Convolutional Code Parameters (NASA standard)
-K  = 7
-G1 = np.array([1, 0, 1, 1, 0, 1, 1], dtype=int)
-G2 = np.array([1, 1, 1, 1, 0, 0, 1], dtype=int)
 
 def conv_encode(bits: np.ndarray) -> np.ndarray:
     """

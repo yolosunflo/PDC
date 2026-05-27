@@ -1,13 +1,9 @@
 import numpy as np
 
-from config import PREAMBLE_AMPLITUDE, PREAMBLE_LENGTH, N_INFO_BITS, CONV_TAIL_BITS
+from config import PREAMBLE_AMPLITUDE, PREAMBLE_LENGTH, N_INFO_BITS, CONV_TAIL_BITS, K, G1, G2
 from utils import apply_T, apply_T_inverse, bits_to_text
 
-
-K = 7
 N_STATES = 2 ** (K - 1)   # 64
-G1 = [1, 0, 1, 1, 0, 1, 1]
-G2 = [1, 1, 1, 1, 0, 0, 1]
 
 # OUTPUT[s, u] = (c1, c2)  output bits for state s and input u
 # NEXT[s, u] = next state

@@ -1,4 +1,10 @@
+import numpy as np
 # Constants
+
+# Convolutional Code Parameters (NASA standard)
+K  = 7
+G1 = np.array([1, 0, 1, 1, 0, 1, 1], dtype=int)
+G2 = np.array([1, 1, 1, 1, 0, 0, 1], dtype=int)
 
 # === PRÉAMBULE ===
 PREAMBLE_AMPLITUDE = 3.0
