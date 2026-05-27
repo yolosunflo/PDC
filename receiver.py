@@ -17,7 +17,7 @@ for s in range(N_STATES):
         OUTPUT[s, u, 1] = np.dot(full, G2) % 2
         NEXT[s, u] = ((s // 2) | (u * 2 ** (K - 2))) & (N_STATES - 1)
 
-# Reverse table: for each next_state, the two (prev_state, input) pairs that lead to it ( used for vectorised ACS)
+# Reverse table: for each next_state, the two (prev_state, input) pairs that lead to it ( used for vectorised Add-Compare-Select)
 REV = np.zeros((N_STATES, 2, 2), dtype=np.int32)
 rev_cnt = np.zeros(N_STATES, dtype=int)
 for s in range(N_STATES):
@@ -33,14 +33,14 @@ INCOMING_STATE = REV[:, :, 0]   # (64, 2) incoming prev-state for each of the 2 
 INCOMING_BIT = REV[:, :, 1]   # (64, 2) input bit that caused each transition
 
 
- # ML estimation of the rotation index k ∈ {1,2,3,4} from the received preamble. Candidates are built dynamically from PREAMBLE_LENGTH.
+ # ML estimation of the rotation index k ∈ {1,2,3,4} from the received preamble
 def estimate_T(y_preamble: np.ndarray, A: float) -> int:
     base = np.full(PREAMBLE_LENGTH, A, dtype=float)
     candidates = np.array([apply_T(base, k) for k in range(1, 5)])
     return int(np.argmax(candidates @ y_preamble)) + 1
 
 # Soft-decision Viterbi decoder 
-# Parameters: received_symbols - 1D array of N_CODED_BITS=492 de-rotated BPSK received_symbols values (≈ ±Aq + noise)
+# Parameters: received_symbols, 1D array of N_CODED_BITS=492 de-rotated BPSK received_symbols values (= ±Aq + noise)
 # Returns: 1D array of N_INFO_BITS=240 decoded info bits in {0, 1}
 def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
 
