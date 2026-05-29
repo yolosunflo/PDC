@@ -6,7 +6,7 @@ K  = 7
 G1 = np.array([1, 0, 1, 1, 0, 1, 1], dtype=int)
 G2 = np.array([1, 1, 1, 1, 0, 0, 1], dtype=int)
 
-# === PRÉAMBULE ===
+# === PREAMBULE ===
 PREAMBLE_AMPLITUDE = 3.0
 PREAMBLE_LENGTH    = 4
 
@@ -14,10 +14,10 @@ PREAMBLE_LENGTH    = 4
 ENERGY_PER_QPSK_SYMBOL = 4.70                              # energy per pair of chips
 QPSK_AMPLITUDE         = (ENERGY_PER_QPSK_SYMBOL / 2) ** 0.5   # Aq ≈ 1.533
 
-# === CODE CONVOLUTIF (K=7, rate 1/2, NASA standard) ===
+# === CONVOLUTIONAL CODE (K=7, rate 1/2, NASA standard) ===
 CONV_TAIL_BITS = 6   # tail zeros to flush the shift register back to state 0
 
-# === CONTRAINTES ===
+# === CONSTRAINTS ===
 N_MAX      = 500
 ENERGY_MAX = 1200
 SIGMA      = 1.0

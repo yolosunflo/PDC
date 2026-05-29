@@ -18,7 +18,6 @@ def test_full_chain():
 
     assert decoded == msg
 
-# Pareil mais avec un random message en gros
 def random_message():
     return ''.join(np.random.choice(list(ALPHABET), size=N_CHARS))
 

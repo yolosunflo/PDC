@@ -1,9 +1,3 @@
-"""
-main
-first minimalist version (just to understand how the project is built)
-Run from terminal : python main.py "Hello World This Is A Test Message 1234"
-"""
-
 import subprocess
 import sys
 import numpy as np

@@ -55,7 +55,7 @@ def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
     for t in range(n_steps):
         r1, r2 = received_symbols[2 * t], received_symbols[2 * t + 1]
 
-        # Branch metrics for all (state, input) pairs — shape (64, 2)
+        # Branch metrics for all (state, input) pairs; shape (64, 2)
         branch = r1 * CHIPS_1 + r2 * CHIPS_2
 
         # Accumulated metrics for the 2 paths arriving at each next state
