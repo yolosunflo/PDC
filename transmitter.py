@@ -11,7 +11,7 @@ from utils import text_to_bits
 
 def conv_encode(bits: np.ndarray) -> np.ndarray:
     """
-    Rate-1/2, K=7 convolutional encoder (NASA standard).
+    Rate-1/2, K=7 convolutional encoder
 
     Appends CONV_TAIL_BITS=6 zero tail bits to flush the shift register
     back to state 0, enabling exact Viterbi traceback.

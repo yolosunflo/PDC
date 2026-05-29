@@ -1,8 +1,5 @@
 """
 Test for the whole pipeline
-v1 (maybe to modfy)
-
-Run from terminal: python test_local.py
 """
 
 import numpy as np

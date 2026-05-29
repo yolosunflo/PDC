@@ -26,7 +26,7 @@ for s in range(N_STATES):
         REV[next_state, rev_cnt[next_state]] = [s, u]
         rev_cnt[next_state] += 1
 
-# Precomputed ±1 chip values and incoming-path indices for the ACS loop
+# Precomputed ±1 chip values and incoming-path indices for the Add-Compare-Select loop
 CHIPS_1 = 1.0 - 2.0 * OUTPUT[:, :, 0].astype(float)  # (64, 2) expected BPSK chip on branch 1
 CHIPS_2 = 1.0 - 2.0 * OUTPUT[:, :, 1].astype(float)  # (64, 2) expected BPSK chip on branch 2
 INCOMING_STATE = REV[:, :, 0]   # (64, 2) incoming prev-state for each of the 2 paths
@@ -39,8 +39,8 @@ def estimate_T(y_preamble: np.ndarray, A: float) -> int:
     candidates = np.array([apply_T(base, k) for k in range(1, 5)])
     return int(np.argmax(candidates @ y_preamble)) + 1
 
-# Soft-decision Viterbi decoder 
-# Parameters: received_symbols, 1D array of N_CODED_BITS=492 de-rotated BPSK received_symbols values (= ±Aq + noise)
+# Viterbi decoder 
+# Parameters: received_symbols, 1D array of N_CODED_BITS=492 derotated BPSK received_symbols values (= ±Aq + noise)
 # Returns: 1D array of N_INFO_BITS=240 decoded info bits in {0, 1}
 def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
 
@@ -69,7 +69,7 @@ def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
         survivors[t]  = INCOMING_BIT[idx, best]
         prev_state[t] = INCOMING_STATE[idx, best]
 
-    # Traceback from state 0 (code is terminated — encoder ends in state 0)
+    # Traceback from state 0 (code is terminated encoder ends in state 0)
     decoded = np.zeros(n_steps, dtype=int)
     state = 0
     for t in range(n_steps - 1, -1, -1):
@@ -78,7 +78,7 @@ def viterbi_decode(received_symbols: np.ndarray) -> np.ndarray:
 
     return decoded[:N_INFO_BITS]   # discard the 6 tail bits
 
-#Full receiver pipeline: y -> preamble / data split -> estimate T -> de-rotate -> Viterbi -> text
+#Full receiver pipeline
 def decode_message(y: np.ndarray) -> str:
     y_preamble  = y[:PREAMBLE_LENGTH]
     y_data = y[PREAMBLE_LENGTH:]
